@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="BlackjackProject" default="build" basedir=".">
+    
+    <!-- Propriétés -->
+    <property name="src.dir" value="blackjack/src/blackjack" />
+    <property name="cartes.src.dir" value="cartes/src" />
+    <property name="build.dir" value="build" />
+    <property name="classes.dir" value="${build.dir}/classes" />
+    <property name="lib.dir" value="lib" />
+    <property name="dist.dir" value="dist" />
+    <property name="main.class" value="blackjack.vue.SwingBlackjack" />  <!-- Main class path -->
+
+    <!-- Tâche de nettoyage -->
+    <target name="clean">
+        <delete dir="${build.dir}" />
+    </target>
+
+    <!-- Compilation des fichiers Java -->
+    <target name="compile" depends="clean">
+        <mkdir dir="${classes.dir}" />
+        <javac srcdir="${src.dir}" destdir="${classes.dir}" classpath="${lib.dir}/cartes-0.1.jar:${cartes.src.dir}" />
+    </target>
+
+    <!-- Création du fichier JAR -->
+    <target name="jar" depends="compile">
+        <mkdir dir="${dist.dir}" />
+        <jar destfile="${dist.dir}/blackjack.jar" basedir="${classes.dir}" />
+    </target>
+
+    <!-- Tâche de build (nettoyage, compilation, et création du JAR) -->
+    <target name="build" depends="clean, compile, jar" />
+
+    <!-- Exécution de l'application -->
+    <target name="run" depends="build">
+        <java fork="true" 
+              classname="${main.class}" 
+              classpath="${lib.dir}/cartes-0.1.jar:${dist.dir}/blackjack.jar:${cartes.src.dir}" />
+    </target>
+</project>
+
+
