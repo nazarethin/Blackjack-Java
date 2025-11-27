@@ -1,35 +1,46 @@
 package blackjack.modele;
 
-import java.util.*;
-import cartes.modele.Carte;
 import cartes.modele.Paquet;
+import cartes.modele.Carte;
 
 /**
- * Représente un joueur (ou la main d'un joueur).
- * Stocke son paquet (sa main) et un nom.
+ * Représente un joueur de Blackjack générique.
+ * Gère la main du joueur et le calcul du score (incluant la gestion des As).
  */
 public class Player {
-    private final String name;
-    private final Paquet main;
+    protected Paquet main;
+    protected String nom;
 
-    public Player(String name) {
-        this.name = name;
+    /**
+     * Initialise un joueur avec un nom et une main vide.
+     * @param nom Le nom du joueur.
+     */
+    public Player(String nom) {
+        this.nom = nom;
         this.main = new Paquet();
     }
 
-    public String getName() { return name; }
-    public Paquet getMain() { return main; }
+    public Paquet getMain() {
+        return main;
+    }
 
-    public void receive(Carte c) { main.ajouter(c); }
-
-    public List<Carte> getCartes() { return main.getCartes(); }
-
-    public void clearHand() {
-        // retirer toutes les cartes : on reconstruit un Paquet vide
-        // (Paquet doit fournir des méthodes ; si non, on peut retirer par index)
-        // Ici on recrée un new Paquet() en réassignant n'est pas possible => retirer toutes
-        while (main.taille() > 0) {
-            main.retirerPremiere();
+    /**
+     * Calcule le score actuel de la main du joueur selon les règles du Blackjack.
+     * Gère automatiquement la valeur de l'As (11 ou 1) pour maximiser le score sans dépasser 21.
+     * @return Le score entier optimal.
+     */
+    public int getScore() {
+        int score = 0;
+        int as = 0;
+        for (Carte c : main.getCartes()) {
+            score += c.getPoints();
+            if (c.getValeur().equals("ace")) as++;
         }
+        // Ajustement des As (11 -> 1) si le score dépasse 21
+        while (score > 21 && as > 0) {
+            score -= 10;
+            as--;
+        }
+        return score;
     }
 }

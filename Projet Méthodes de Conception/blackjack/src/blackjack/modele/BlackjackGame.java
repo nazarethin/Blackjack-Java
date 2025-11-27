@@ -1,94 +1,127 @@
 package blackjack.modele;
 
-import java.util.*;
-import cartes.modele.Carte;
-import cartes.modele.Paquet;
-import cartes.modele.FabriquePaquet;
+import cartes.modele.*;
 
 /**
- * Logique minimale du blackjack :
- * - distribution initiale
- * - hit pour un joueur
- * - stand (on passe)
- * - calcul des totaux en traitant les As (1 ou 11)
+ * Classe principale gérant la logique du jeu de Blackjack (Le Modèle MVC).
+ * Gère le paquet principal, les joueurs, les tours de jeu et les conditions de victoire.
+ * Notifie les vues via le mécanisme ModeleEcoutable.
  */
-public class BlackjackGame {
+public class BlackjackGame extends AbstractModeleEcoutable {
+    private Paquet pioche;
+    private final Player joueur; 
+    private final Dealer dealer; 
+    private boolean partieTerminee;
+    private String messageEtat;
 
-    private final Paquet deck; // paquet principal (52) : on pioche depuis ici
-    private final Player player;
-    private final Dealer dealer;
-
+    /**
+     * Constructeur. Initialise les objets joueurs et lance une première initialisation du jeu.
+     */
     public BlackjackGame() {
-        this.deck = FabriquePaquet.creerJeu52();
-        this.deck.melanger();
-        this.player = new Player("Joueur");
+        // Initialisation unique des objets pour que la Vue puisse conserver ses références
+        this.pioche = FabriquePaquet.creerPaquet52();
+        this.joueur = new Player("Joueur");
         this.dealer = new Dealer();
+        
+        initialiserJeu();
     }
 
-    public Player getPlayer() { return player; }
-    public Dealer getDealer() { return dealer; }
+    /**
+     * Réinitialise le jeu pour une nouvelle manche.
+     * Vide les mains, recrée et mélange la pioche, distribue les cartes initiales
+     * et vérifie s'il y a un Blackjack d'entrée.
+     */
+    public void initialiserJeu() {
+        // 1. Réinitialisation de l'état
+        partieTerminee = false;
+        messageEtat = "A vous de jouer";
+        
+        // 2. Remplissage et mélange de la pioche
+        pioche = FabriquePaquet.creerPaquet52();
+        pioche.melanger();
+        
+        // 3. Vidage des mains (On garde les mêmes instances de Paquet !)
+        joueur.getMain().vider();
+        dealer.getMain().vider();
 
-    /** distribution initiale : 2 cartes chacun (dealer a une carte face cachée conceptuellement) */
+        // 4. Distribution initiale (2 cartes chacun)
+        joueur.getMain().ajouter(pioche.piocher());
+        dealer.getMain().ajouter(pioche.piocher());
+        joueur.getMain().ajouter(pioche.piocher());
+        dealer.getMain().ajouter(pioche.piocher());
+        
+        checkBlackjack();
+        fireChangement();
+    }
+    
+    /**
+     * Helper pour la Vue, synonyme de initialiserJeu().
+     */
     public void initialDeal() {
-        player.getMain().ajouter(deck.retirerPremiere());
-        dealer.getMain().ajouter(deck.retirerPremiere());
-        player.getMain().ajouter(deck.retirerPremiere());
-        dealer.getMain().ajouter(deck.retirerPremiere());
+        initialiserJeu();
     }
 
-    public Carte hit(Player p) {
-        Carte c = deck.retirerPremiere();
-        p.receive(c);
-        return c;
+    /**
+     * Vérifie si le joueur a obtenu un Blackjack (21 points) dès la distribution.
+     */
+    private void checkBlackjack() {
+        if (joueur.getScore() == 21) {
+            messageEtat = "Blackjack ! Vous gagnez !";
+            partieTerminee = true;
+        }
     }
 
-    /** calcule le meilleur total <=21 sinon le minimal >21 */
-    public static int bestTotal(List<Carte> cartes) {
-        int total = 0;
-        int aces = 0;
-        for (Carte c : cartes) {
-            String h = c.getHauteur().toLowerCase(); // "as","roi","dame","valet" ou "2".."10"
-            if (h.equals("as") || h.equals("ace")) {
-                aces++;
-                total += 1; // compté initialement comme 1
-            } else if (h.equals("roi") || h.equals("dame") || h.equals("valet")
-                    || h.equals("king") || h.equals("queen") || h.equals("jack")) {
-                total += 10;
-            } else {
-                // essayer de parser un nombre
-                try {
-                    total += Integer.parseInt(h);
-                } catch (NumberFormatException e) {
-                    // fallback : 10
-                    total += 10;
+    /**
+     * Action "Tirer" (Hit). Le joueur prend une carte.
+     * Si le score dépasse 21, la partie est perdue (Bust).
+     */
+    public void hit() {
+        if (!partieTerminee) {
+            Carte c = pioche.piocher();
+            if(c != null) {
+                joueur.getMain().ajouter(c);
+                if (joueur.getScore() > 21) {
+                    messageEtat = "Perdu (Bust) !";
+                    partieTerminee = true;
                 }
             }
+            fireChangement();
         }
-        // tenter de promouvoir certains As de 1 à 11 si possible
-        for (int i = 0; i < aces; i++) {
-            if (total + 10 <= 21) total += 10;
-        }
-        return total;
     }
 
-    /** indique si bust */
-    public static boolean isBust(List<Carte> cartes) {
-        return bestTotal(cartes) > 21;
+    /**
+     * Action "Rester" (Stand). Le joueur s'arrête.
+     * Le dealer joue alors son tour selon sa stratégie, puis le gagnant est déterminé.
+     */
+    public void stand() {
+        if (!partieTerminee) {
+            // Le Dealer joue
+            while (dealer.doitPiocher()) {
+                dealer.getMain().ajouter(pioche.piocher());
+            }
+            determinerGagnant();
+            partieTerminee = true;
+            fireChangement();
+        }
     }
 
-    /** reset game (remet main et recrée deck mélangé) */
-    public void reset() {
-        // vider mains
-        player.clearHand();
-        dealer.clearHand();
-        // recréer et mélanger le deck
-        Paquet newDeck = FabriquePaquet.creerJeu52();
-        newDeck.melanger();
-        // remplacer cartes du deck : si Paquet n'autorise pas de réassignation,
-        // on copie le contenu de newDeck dans deck (simplifié ici supposer méthode)
-        // Mais si deck est immutable, on peut simplement réaffecter via réflexion :
-        // pour simplicité, on utilisera le champ deck pour ajouter toutes les cartes :
-        while (deck.taille() > 0) deck.retirerPremiere();
-        for (Carte c : newDeck.getCartes()) deck.ajouter(c);
+    /**
+     * Compare les scores pour déterminer le vainqueur et met à jour le message d'état.
+     */
+    private void determinerGagnant() {
+        int scJ = joueur.getScore();
+        int scD = dealer.getScore();
+
+        if (scD > 21) messageEtat = "Dealer Bust ! Vous gagnez !";
+        else if (scJ > scD) messageEtat = "Vous gagnez !";
+        else if (scD > scJ) messageEtat = "Le Dealer gagne.";
+        else messageEtat = "Egalité.";
     }
+
+    // Getters
+    public Player getPlayer() { return joueur; }
+    public Player getJoueur() { return joueur; }
+    public Dealer getDealer() { return dealer; }
+    public boolean isTerminee() { return partieTerminee; }
+    public String getMessage() { return messageEtat; }
 }

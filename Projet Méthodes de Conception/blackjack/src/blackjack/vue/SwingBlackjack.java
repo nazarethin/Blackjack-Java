@@ -1,156 +1,120 @@
 package blackjack.vue;
 
-import cartes.modele.*;
+import blackjack.modele.BlackjackGame;
+import cartes.modele.EcouteurModele;
+import cartes.vue.VuePaquetVisible;
+
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
-import java.util.List;
-import cartes.modele.Carte;
-import blackjack.modele.*;
 
-public class SwingBlackjack extends JFrame {
+/**
+ * Fenêtre principale de l'application Blackjack (Vue principale).
+ * Implémente EcouteurModele pour se mettre à jour lors des changements du jeu.
+ *
+ * @author Groupe Ulan
+ * @version 1.0
+ */
+public class SwingBlackjack extends JFrame implements EcouteurModele {
+    private BlackjackGame game;
+    private VuePaquetVisible vueJoueur;
+    private VueDealer vueDealer;
+    private JLabel lblStatus;
+    private JButton btnHit, btnStand, btnReset;
 
-    private final BlackjackGame game;
-    private final JPanel playerPanel;
-    private final JPanel dealerPanel;
-    private final JLabel statusLabel;
-    private final JButton hitBtn;
-    private final JButton standBtn;
-    private final JButton newGameBtn;
-
-    public SwingBlackjack() {
-        super("Blackjack");
-        game = new BlackjackGame();
-
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout());
-
-        // North: dealer
-        dealerPanel = new JPanel();
-        dealerPanel.setBorder(BorderFactory.createTitledBorder("Croupier"));
-        add(dealerPanel, BorderLayout.NORTH);
-
-        // Center: player
-        playerPanel = new JPanel();
-        playerPanel.setBorder(BorderFactory.createTitledBorder("Joueur"));
-        add(playerPanel, BorderLayout.CENTER);
-
-        // South: controls
-        JPanel control = new JPanel();
-        hitBtn = new JButton("Hit");
-        standBtn = new JButton("Stand");
-        newGameBtn = new JButton("Nouvelle partie");
-        statusLabel = new JLabel("Prêt");
-
-        control.add(hitBtn);
-        control.add(standBtn);
-        control.add(newGameBtn);
-        control.add(statusLabel);
-        add(control, BorderLayout.SOUTH);
-
-        // Listeners
-        hitBtn.addActionListener(e -> doHit());
-        standBtn.addActionListener(e -> doStand());
-        newGameBtn.addActionListener(e -> startGame());
-
-        pack();
-        setSize(800, 600);
-        setLocationRelativeTo(null);
-        startGame();
-        setVisible(true);
-    }
-
-    private void startGame() {
-        game.reset();
-        game.initialDeal();
-        refreshUI();
-        statusLabel.setText("Votre tour");
-        hitBtn.setEnabled(true);
-        standBtn.setEnabled(true);
-    }
-
-    private void doHit() {
-        game.hit(game.getPlayer());
-        refreshUI();
-        if (BlackjackGame.isBust(game.getPlayer().getCartes())) {
-            statusLabel.setText("Vous avez dépassé 21 — Perdu");
-            hitBtn.setEnabled(false);
-            standBtn.setEnabled(false);
-        }
-    }
-
-    private void doStand() {
-        hitBtn.setEnabled(false);
-        standBtn.setEnabled(false);
-        // tour du croupier simple
-        while (game.getDealer().shouldHit(BlackjackGame.bestTotal(game.getDealer().getCartes()))) {
-            game.hit(game.getDealer());
-            refreshUI();
-            try { Thread.sleep(600); } catch (InterruptedException ignored) {}
-        }
-        int playerTotal = BlackjackGame.bestTotal(game.getPlayer().getCartes());
-        int dealerTotal = BlackjackGame.bestTotal(game.getDealer().getCartes());
-        String result;
-        if (BlackjackGame.isBust(game.getDealer().getCartes())) {
-            result = "Croupier a dépassé 21 — Vous gagnez !";
-        } else if (playerTotal > dealerTotal) {
-            result = "Vous gagnez (" + playerTotal + " vs " + dealerTotal + ")";
-        } else if (playerTotal < dealerTotal) {
-            result = "Vous perdez (" + playerTotal + " vs " + dealerTotal + ")";
-        } else {
-            result = "Égalité (" + playerTotal + " vs " + dealerTotal + ")";
-        }
-        statusLabel.setText(result);
-    }
-
-    /** Actualise l'affichage des mains en chargeant des images si présentes. */
-    private void refreshUI() {
-        updatePanel(dealerPanel, game.getDealer().getCartes(), true);
-        updatePanel(playerPanel, game.getPlayer().getCartes(), false);
-        revalidate();
-        repaint();
-    }
-
-    /** helper: affiche une liste de cartes dans un panel. Si hideFirst true => cache la 1ère carte du croupier */
-    private void updatePanel(JPanel panel, List<Carte> cartes, boolean hideFirst) {
-        panel.removeAll();
-        for (int i = 0; i < cartes.size(); i++) {
-            Carte c = cartes.get(i);
-            JLabel lbl = new JLabel();
-            ImageIcon icon = loadCardImage(c);
-            if (icon != null) {
-                lbl.setIcon(icon);
-            } else {
-                String text = "[" + c.getHauteur() + " " + c.getCouleur() + "]";
-                lbl.setText(text);
-            }
-            // cacher la première du croupier si demandé
-            if (hideFirst && i == 0) {
-                lbl.setIcon(null);
-                lbl.setText("[cachee]");
-            }
-            panel.add(lbl);
-        }
-    }
-
-    /** charge une image depuis resources/cards/nom.png selon la carte.
-     * Nommage attendu: hauteur_couleur.png ex: as_coeur.png, 10_pique.png, roi_coeur.png
+    /**
+     * Constructeur : Initialise l'interface graphique et le jeu.
      */
-    private ImageIcon loadCardImage(Carte c) {
-        String h = c.getHauteur().toLowerCase().replaceAll("é","e").replaceAll("ê","e");
-        String col = c.getCouleur().toLowerCase().replaceAll("é","e");
-        String name = h + "_" + col + ".png";
-        String path = "/cards/" + name; // sera cherché dans classpath resources
-        java.net.URL imgURL = getClass().getResource(path);
-        if (imgURL != null) {
-            ImageIcon ic = new ImageIcon(imgURL);
-            Image scaled = ic.getImage().getScaledInstance(80, 120, Image.SCALE_SMOOTH);
-            return new ImageIcon(scaled);
+    public SwingBlackjack() {
+        super("Blackjack MVC");
+        game = new BlackjackGame();
+        game.ajoutEcouteur(this);
+
+        this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        this.setSize(1000, 700);
+        this.setLayout(new BorderLayout());
+
+        // --- Zone de jeu (Table) ---
+        JPanel pnlTable = new JPanel(new GridLayout(2, 1));
+        pnlTable.setBackground(new Color(35, 100, 50)); // Tapis vert
+        
+        // Zone Dealer
+        JPanel pnlDealer = new JPanel(new BorderLayout());
+        pnlDealer.setOpaque(false);
+        JLabel lblDealer = new JLabel("CROUPIER", SwingConstants.CENTER);
+        lblDealer.setForeground(Color.WHITE);
+        lblDealer.setFont(new Font("Arial", Font.BOLD, 20));
+        pnlDealer.add(lblDealer, BorderLayout.NORTH);
+        
+        vueDealer = new VueDealer(game.getDealer().getMain(), game);
+        pnlDealer.add(vueDealer, BorderLayout.CENTER);
+        
+        // Zone Joueur
+        JPanel pnlJoueur = new JPanel(new BorderLayout());
+        pnlJoueur.setOpaque(false);
+        JLabel lblJoueur = new JLabel("JOUEUR", SwingConstants.CENTER);
+        lblJoueur.setForeground(Color.WHITE);
+        lblJoueur.setFont(new Font("Arial", Font.BOLD, 20));
+        pnlJoueur.add(lblJoueur, BorderLayout.NORTH);
+        
+        vueJoueur = new VuePaquetVisible(game.getPlayer().getMain());
+        pnlJoueur.add(vueJoueur, BorderLayout.CENTER);
+
+        pnlTable.add(pnlDealer);
+        pnlTable.add(pnlJoueur);
+        this.add(pnlTable, BorderLayout.CENTER);
+
+        // --- Zone de contrôles ---
+        JPanel pnlControls = new JPanel();
+        pnlControls.setBackground(new Color(50, 50, 50));
+        
+        btnHit = new JButton("TIRER");
+        btnStand = new JButton("RESTER");
+        btnReset = new JButton("NOUVELLE PARTIE");
+        
+        lblStatus = new JLabel(game.getMessage());
+        lblStatus.setForeground(Color.WHITE);
+        lblStatus.setFont(new Font("Arial", Font.BOLD, 18));
+
+        btnHit.addActionListener(e -> game.hit());
+        btnStand.addActionListener(e -> game.stand());
+        btnReset.addActionListener(e -> game.initialiserJeu());
+
+        pnlControls.add(lblStatus);
+        pnlControls.add(Box.createHorizontalStrut(20));
+        pnlControls.add(btnHit);
+        pnlControls.add(btnStand);
+        pnlControls.add(btnReset);
+
+        this.add(pnlControls, BorderLayout.SOUTH);
+
+        this.setVisible(true);
+        modeleMisAJour(game); // Mise à jour initiale
+    }
+
+    /**
+     * Méthode appelée par le modèle quand l'état du jeu change.
+     * Met à jour les scores, les boutons et redessine les cartes.
+     * @param source Le modèle ayant déclenché la mise à jour.
+     */
+    @Override
+    public void modeleMisAJour(Object source) {
+        lblStatus.setText(game.getMessage() + " (Score: " + game.getPlayer().getScore() + ")");
+        
+        if (game.isTerminee()) {
+            btnHit.setEnabled(false);
+            btnStand.setEnabled(false);
+            btnReset.setEnabled(true);
+        } else {
+            btnHit.setEnabled(true);
+            btnStand.setEnabled(true);
+            btnReset.setEnabled(false);
         }
-        return null;
+        
+        vueJoueur.repaint();
+        vueDealer.repaint();
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(SwingBlackjack::new);
+        SwingUtilities.invokeLater(() -> new SwingBlackjack());
     }
 }
