@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="ProjetBlackjack" default="dist" basedir=".">
+    <description>
+        Build file for the Blackjack Project (Library + App)
+    </description>
+
+    <!-- ===================== Properties ===================== -->
+    <property name="build.dir" location="build"/>
+    <property name="dist.dir"  location="dist"/>
+    <property name="doc.dir"   location="doc"/>
+    <property name="res.dir"   location="ressources"/>
+    
+    <!-- Module: Cartes -->
+    <property name="cartes.src"   location="cartes/src"/>
+    <property name="cartes.build" location="${build.dir}/cartes"/>
+    
+    <!-- Module: Blackjack -->
+    <property name="blackjack.src"   location="blackjack/src"/>
+    <property name="blackjack.build" location="${build.dir}/blackjack"/>
+    <property name="main.class"      value="blackjack.vue.SwingBlackjack"/>
+
+    <!-- ===================== Clean ===================== -->
+    <target name="clean" description="Nettoyer les dossiers de build">
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
+        <delete dir="${doc.dir}"/>
+        <echo>Nettoyage terminé.</echo>
+    </target>
+
+    <!-- ===================== Init ===================== -->
+    <target name="init">
+        <mkdir dir="${build.dir}"/>
+        <mkdir dir="${dist.dir}"/>
+        <mkdir dir="${doc.dir}"/>
+        <mkdir dir="${cartes.build}"/>
+        <mkdir dir="${blackjack.build}"/>
+    </target>
+
+    <!-- ===================== Compile: Cartes ===================== -->
+    <target name="compile-cartes" depends="init" description="Compiler la librairie Cartes">
+        <javac srcdir="${cartes.src}" destdir="${cartes.build}" includeantruntime="false" debug="true" encoding="UTF-8"/>
+    </target>
+
+    <!-- ===================== Jar: Cartes ===================== -->
+    <target name="jar-cartes" depends="compile-cartes" description="Générer le JAR de la librairie">
+        <jar destfile="${dist.dir}/cartes.jar" basedir="${cartes.build}"/>
+        <echo>Librairie cartes.jar générée.</echo>
+    </target>
+
+    <!-- ===================== Compile: Blackjack ===================== -->
+    <target name="compile-blackjack" depends="jar-cartes" description="Compiler l'application Blackjack">
+        <!-- Note: On ajoute cartes.jar au classpath pour que Blackjack puisse l'utiliser -->
+        <javac srcdir="${blackjack.src}" destdir="${blackjack.build}" includeantruntime="false" debug="true" encoding="UTF-8">
+            <classpath>
+                <pathelement location="${dist.dir}/cartes.jar"/>
+            </classpath>
+        </javac>
+    </target>
+
+    <!-- ===================== Dist (Main Target) ===================== -->
+    <target name="dist" depends="compile-blackjack" description="Générer l'exécutable final">
+        <!-- Copie des ressources (images) dans le dossier build pour l'inclusion -->
+        <copy todir="${blackjack.build}/ressources">
+            <fileset dir="${res.dir}"/>
+        </copy>
+
+        <!-- Création du JAR exécutable -->
+        <jar destfile="${dist.dir}/blackjack.jar" basedir="${blackjack.build}">
+            <manifest>
+                <attribute name="Main-Class" value="${main.class}"/>
+                <attribute name="Class-Path" value="cartes.jar"/>
+            </manifest>
+            <!-- On inclut aussi les sources pour la livraison, comme souvent demandé -->
+            <fileset dir="${blackjack.src}"/>
+        </jar>
+        <echo>Application blackjack.jar générée dans le dossier dist/.</echo>
+    </target>
+
+    <!-- ===================== Javadoc ===================== -->
+    <target name="javadoc" depends="init" description="Générer la documentation">
+        <javadoc destdir="${doc.dir}" author="true" version="true" use="true" windowtitle="Blackjack API" encoding="UTF-8">
+            <packageset dir="${cartes.src}" defaultexcludes="yes">
+                <include name="cartes/**"/>
+            </packageset>
+            <packageset dir="${blackjack.src}" defaultexcludes="yes">
+                <include name="blackjack/**"/>
+            </packageset>
+            <classpath>
+                <pathelement path="${cartes.src}"/>
+            </classpath>
+        </javadoc>
+        <echo>Documentation générée dans le dossier doc/.</echo>
+    </target>
+
+    <!-- ===================== Passer les tests ===================== -->
+    <target name="test" depends="compile-cartes" description="Lancer les tests unitaires de la librairie">
+        <echo>Lancement du test de la librairie Cartes...</echo>
+        <java classname="cartes.TestJeuDeCartes" fork="true">
+            <classpath>
+                <pathelement location="${cartes.build}"/>
+            </classpath>
+        </java>
+    </target>
+
+    <!-- ===================== Run ===================== -->
+    <target name="run" depends="dist" description="Lancer le jeu">
+        <java jar="${dist.dir}/blackjack.jar" fork="true">
+            <classpath>
+                <pathelement location="${dist.dir}/cartes.jar"/>
+                <pathelement location="${dist.dir}/blackjack.jar"/>
+            </classpath>
+        </java>
+    </target>
+
+</project>
